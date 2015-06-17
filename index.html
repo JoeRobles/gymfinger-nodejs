@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>NodeJS test</title>
+    </head>
+
+    <body>
+        <label for="name">Name</label><input id="name" type="text"><button id="join" type="button">Send</button>
+        <textarea id="words"></textarea>
+        <script src="js/jquery.min.js"></script>
+        <script src="js/socket.io.js"></script>
+        <script>
+            var socket = io('http://127.0.0.1:1337/');
+            socket.on('connect', function () {
+                socket.emit('message', 'Hello there');
+                socket.on('message', function (msg) {
+                    console.log(msg);
+                });
+                socket.on('yourwords', function(words){
+                    $('#words').val(words.join(', '));
+                });
+            });
+            $('#join').on('click', function(){
+                if ($('#name').val() !== '') {
+                    socket.emit('join', { name: $('#name').val() });
+                }
+            });
+        </script>
+    </body>
+</html>
