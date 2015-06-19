@@ -23,19 +23,19 @@ io.on('connection', function (socket) {
     socket.on('message', function (msg) {
         console.log(msg);
     });
-    socket.on('disconnect', function (data) {
+    socket.on('disconnect', function () {
         count--;
         console.log(count);
-        Room.findOne({players: socket.id}, function (error, room) {
+        Room.findOne({players: socket.idName}, function (error, room) {
             if (error) {
                 console.log('Error on lowering room.');
                 return;
             }
             if (room === null) {
             } else {
-                usernames = removeFromArray(usernames, socket.id);
+                usernames = removeFromArray(usernames, socket.idName);
                 if (room.numPlayers === 2) {
-                    updateRoom(Room, room.id, {numPlayers: room.numPlayers - 1, players: removeFromArray(room.players, socket.id), status: 'waiting'});
+                    updateRoom(Room, room.id, {numPlayers: room.numPlayers - 1, players: removeFromArray(room.players, socket.idName), status: 'waiting'});
                     console.log(usernames);
                     console.log(rooms);
                 } else if (room.numPlayers === 1) {
@@ -47,9 +47,8 @@ io.on('connection', function (socket) {
             }
         });
     });
-    io.sockets.emit('message', 'hi');
     socket.on('join', function (data) {
-        socket.id = data.name;
+        socket.idName = data.name;
         Room.findOne({'status': 'waiting'}, function (error, room) {
             if (error) {
                 console.log('Error on finding room.');
@@ -59,16 +58,17 @@ io.on('connection', function (socket) {
                 createRoom(Room, socket, data.name);
             } else {
                 if (room.numPlayers === 1) {//room completed
+                    var first = room.players[0];
                     room.players.push(data.name);
                     updateRoom(Room, room.id, {numPlayers: room.numPlayers + 1, players: room.players, status: 'start'});
-                    socket.room = room.id;
+                    socket.room = room.id.toString();
                     usernames.push(data.name);
-                    socket.emit('message', 'Challenger joined.');
+                    socket.join(socket.room);
                     console.log(usernames);
                     console.log(rooms);
-                    socket.emit('yourwords', room.words);
-                } else {//expectators
-                    createRoom(Room, socket);
+                    socket.emit('message', 'You have accepted ' + first + "'s challenge.");
+                    emitToRoom(socket, 'yourwords', room.words);
+                    emitToRoom(socket, 'message', 'the room is ready');
                 }
             }
         });
@@ -108,12 +108,11 @@ function createRoom(Room, socket, name) {
             console.log("Error creating Room into mondogb:  " + error);
         } else {
             console.log("Room created");
-            socket.id = name;
-            socket.room = Rmodel._id;
-//            socket.emit('yourwords', shuff);
+            socket.idName = name;
+            socket.room = Rmodel._id.toString();
+            socket.join(socket.room);
             rooms.push(Rmodel._id);
             usernames.push(name);
-            
             console.log(usernames);
             console.log(rooms);
             socket.emit('message', 'Waiting for challenger.');
@@ -143,4 +142,7 @@ function deleteRoom(Room, id) {
             console.log('Error updating Room: ' + error);
         }
     });
+}
+function emitToRoom(socket,event, message) {
+    io.sockets.in(socket.room).emit(event, message);
 }

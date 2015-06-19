@@ -5,7 +5,9 @@
     </head>
 
     <body>
-        <label for="name">Name</label><input id="name" type="text"><button id="join" type="button">Send</button>
+        <label for="name">Name</label>
+        <input id="name" type="text">
+        <button id="join" type="button">Send</button>
         <textarea id="words"></textarea>
         <script src="js/jquery.min.js"></script>
         <script src="js/socket.io.js"></script>
@@ -20,11 +22,14 @@
                 socket.on('yourwords', function(words){
                     $('#words').val(words.join(', '));
                 });
+                socket.on('keyup', function(){
+                    
+                });
             });
             $('#join').on('click', function(){
                 if ($('#name').val() !== '') {
                     name = $('#name').val();
-                    socket.emit('join', { name: $('#name').val() });
+                    socket.emit('join', { name: name });
                 }
             });
         </script>
