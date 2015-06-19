@@ -1,66 +1,72 @@
 var io = require('socket.io')(1337);
 var mongoose = require('mongoose');
 var Room = require('./Entity/Room');
-var Player = require('./Entity/Player');
+//var Player = require('./Entity/Player');
 
+var usernames = [];
+var rooms = [];
 var count = 0;
 io.on('connection', function (socket) {
+    console.log('Server running at http://127.0.0.1:1337/');
     count++;
     mongoose.connection.close();
-    mongoose.connect('mongodb://localhost/gymfinger');
+    mongoose.connect('mongodb://127.0.0.1/gymfinger');
 
     var db = mongoose.connection;
     db.on('error', console.error.bind(console, 'connection error:'));
     db.once('open', function () {
         socket.loadData(Room);
-        socket.loadData(Player);
+//        socket.loadData(Player);
     });
     socket.on('getWords', function () {
     });
     socket.on('message', function (msg) {
         console.log(msg);
     });
-    socket.on('disconnect', function () {
+    socket.on('disconnect', function (data) {
         count--;
-        Room.findOne({'status': 'waiting'}, function (error, room) {
+        console.log(count);
+        Room.findOne({players: socket.id}, function (error, room) {
             if (error) {
                 console.log('Error on lowering room.');
                 return;
             }
             if (room === null) {
             } else {
-                if (room.numPlayers > 0) {
-                    Room.update({_id: room._id}, {$set: {numPlayers: room.numPlayers - 1}}, function (error) {
-                        if (error) {
-                            console.log('Error updating Room: ' + error);
-                        } else {
-                            console.log('Lowered waiting room.');
-                        }
-                    });
+                usernames = removeFromArray(usernames, socket.id);
+                if (room.numPlayers === 2) {
+                    updateRoom(Room, room.id, {numPlayers: room.numPlayers - 1, players: removeFromArray(room.players, socket.id), status: 'waiting'});
+                    console.log(usernames);
+                    console.log(rooms);
+                } else if (room.numPlayers === 1) {
+                    deleteRoom(Room, room.id);
+                    rooms = removeFromArray(rooms, socket.room);
+                    console.log(usernames);
+                    console.log(rooms);
                 }
             }
         });
-        console.log(count);
     });
     io.sockets.emit('message', 'hi');
     socket.on('join', function (data) {
+        socket.id = data.name;
         Room.findOne({'status': 'waiting'}, function (error, room) {
             if (error) {
                 console.log('Error on finding room.');
                 return;
             }
             if (room === null) {
-                createRoom(Room, socket);
+                createRoom(Room, socket, data.name);
             } else {
                 if (room.numPlayers === 1) {//room completed
-                    Room.update({_id: room._id}, {$set: {numPlayers: room.numPlayers + 1, status: 'start'}}, function (error) {
-                        if (error) {
-                            console.log('Error updating Room: ' + error);
-                        } else {
-                            socket.emit('yourwords', room.words);
-//
-                        }
-                    });
+                    room.players.push(data.name);
+                    updateRoom(Room, room.id, {numPlayers: room.numPlayers + 1, players: room.players, status: 'start'});
+                    socket.room = room.id;
+                    usernames.push(data.name);
+                    socket.emit('message', 'Challenger joined.');
+                    console.log(usernames);
+                    console.log(rooms);
+                    socket.emit('yourwords', room.words);
                 } else {//expectators
                     createRoom(Room, socket);
                 }
@@ -79,19 +85,22 @@ io.on('connection', function (socket) {
     };
     console.log(count);
 });
+
 function shuffle(o) {
     for (var j, x, i = o.length; i; j = Math.floor(Math.random() * i), x = o[--i], o[i] = o[j], o[j] = x)
         ;
     return o;
 }
-function createRoom(Room, socket) {
+function createRoom(Room, socket, name) {
     var words = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
     var shuff = shuffle(words);
     var insert = {
         name: 'default',
         status: 'waiting',
         numPlayers: 1,
-        words: shuff
+        players: [name],
+        words: shuff,
+        datetime: new Date(),
     };
     var Rmodel = new Room(insert);
     Rmodel.save(function (error) {
@@ -99,9 +108,39 @@ function createRoom(Room, socket) {
             console.log("Error creating Room into mondogb:  " + error);
         } else {
             console.log("Room created");
+            socket.id = name;
+            socket.room = Rmodel._id;
 //            socket.emit('yourwords', shuff);
+            rooms.push(Rmodel._id);
+            usernames.push(name);
+            
+            console.log(usernames);
+            console.log(rooms);
             socket.emit('message', 'Waiting for challenger.');
         }
     });
 }
-console.log('Server running at http://127.0.0.1:1337/');
+function updateRoom(Room, id, data) {
+    Room.update({_id: id}, {$set: data}, function (error) {
+        if (error) {
+            console.log('Error updating Room: ' + error);
+        }
+    });
+}
+function removeFromArray(arr) {
+    var what, a = arguments, L = a.length, ax;
+    while (L > 1 && arr.length) {
+        what = a[--L];
+        while ((ax= arr.indexOf(what)) !== -1) {
+            arr.splice(ax, 1);
+        }
+    }
+    return arr;
+}
+function deleteRoom(Room, id) {
+    Room.remove({_id: id}, function (error) {
+        if (error) {
+            console.log('Error updating Room: ' + error);
+        }
+    });
+}
