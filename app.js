@@ -73,6 +73,9 @@ io.on('connection', function (socket) {
             }
         });
     });
+    socket.on('typing', function (char) {
+        socket.broadcast.to(socket.room).emit('write', char);
+    });
     socket.loadData = function (model) {
         console.log('socket.loadData:');
         model.find({}, null, {sort: {name: 1}}, function (error, data) {

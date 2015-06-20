@@ -7,8 +7,10 @@
     <body>
         <label for="name">Name</label>
         <input id="name" type="text">
-        <button id="join" type="button">Send</button>
+        <button id="join" type="button">Send</button><br>
         <textarea id="words"></textarea>
+        <br><br>
+        <textarea id="challenger"></textarea>
         <script src="js/jquery.min.js"></script>
         <script src="js/socket.io.js"></script>
         <script>
@@ -20,10 +22,13 @@
                     console.log(msg);
                 });
                 socket.on('yourwords', function(words){
-                    $('#words').val(words.join(', '));
+//                    $('#words').val(words.join(', '));
                 });
-                socket.on('keyup', function(){
-                    
+                $('#words').on('keyup', function(){
+                    socket.emit('typing', $(this).val());
+                });
+                socket.on('write', function(char){
+                    $('#challenger').val(char);
                 });
             });
             $('#join').on('click', function(){
